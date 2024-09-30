@@ -1,4 +1,4 @@
-const supabase = require('./db/supabaseClient'); // Certifique-se de que este arquivo está correto
+const supabase = require('./db/supabaseClient');
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -27,10 +27,10 @@ app.get('/usuario', async (req, res) => {
     const nome = req.query.nome;
 
     const { data, error: getError } = await supabase
-        .from('usuarios')
-        .select()
-        .eq('nome', nome)
-        .single();
+                                            .from('usuarios')
+                                            .select()
+                                            .eq('nome', nome)
+                                            .single();
 
     if (getError) {
         console.error('Erro ao tentar buscar o usuario: ', getError.message);
@@ -64,10 +64,10 @@ app.post('/usuario', async (req, res) => {
 
     // Verifica se o usuário já existe
     const { data: usuarioDB, error: getError } = await supabase
-        .from('usuarios')
-        .select('senha')
-        .eq('nome', nome)
-        .single();
+                                                        .from('usuarios')
+                                                        .select('senha')
+                                                        .eq('nome', nome)
+                                                        .single();
 
     // Essa mensagem de erro do supabase acontece quando não encontra a pessoa no banco
     if (getError && getError.message !== 'JSON object requested, multiple (or no) rows returned') {
@@ -85,8 +85,8 @@ app.post('/usuario', async (req, res) => {
     } else {
         // Se o usuário não existir, realiza o cadastro
         const { error: insertError } = await supabase
-            .from('usuarios')
-            .insert({ nome, senha });
+                                                .from('usuarios')
+                                                .insert({ nome, senha });
 
         if (insertError) {
             console.error('Erro ao tentar inserir o usuário:', insertError.message);
@@ -96,6 +96,32 @@ app.post('/usuario', async (req, res) => {
         return res.sendStatus(200);
     }
 });
+
+app.put('/usuario', async (req, res) => {
+    const { userId, nomeColuna, tempoFase } = req.body;
+
+    console.log('Dados recebidos:', { userId, nomeColuna, tempoFase });
+
+    if (!userId) {
+        return res.status(400).json({ error: 'Erro ao tentar alterar usuario. ID não está definido.' });
+    }
+    if (!nomeColuna) {
+        return res.status(400).json({ error: 'Erro ao tentar alterar usuario. Nome da coluna não foi definida.' });
+    }
+    if (!tempoFase) {
+        return res.status(400).json({ error: 'Erro ao tentar alterar usuario. Novo tempo não foi definido.' });
+    }
+
+    const { error: updateError } = await supabase
+                                            .from('usuarios')
+                                            .update({ [nomeColuna]: tempoFase })
+                                            .eq('id', userId)
+
+    if (updateError) {
+        console.error('Erro ao tentar alterar pontuação do usuário:', updateError.message);
+        return res.status(400).json({ error: 'Erro ao tentar alterar pontuação do usuário.' });
+    }
+})
 
 //post pra esconder info de login da url
 app.post('/adm', async (req, res) => {
@@ -116,39 +142,49 @@ let intervalo;
 // Conexão com Socket.io
 io.on('connection', (socket) => {
     console.log('Um usuario se conectou');
+
     socket.emit('faseAtual', faseAtual);
 
-    // Iniciar o contador quando um usuário se conectar na fase 1
-    if (faseAtual === 1) {
-        contador = 0; // Resetar contador quando um usuário se conecta na fase 1
+    socket.on('comecarContagem', () => {
+        contador = 0;
+
         intervalo = setInterval(() => {
             contador++;
-            console.log(contador);
-            io.emit('atualizarContador', contador); // Envia o valor do contador para todos os clientes
+            io.emit('atualizarContador', contador);
         }, 1000);
-    }
-
-    // Recebe quando o cliente clica em "Completar"
-    socket.on('completarFase1', async (userId) => {
-        clearInterval(intervalo); // Para o contador
-        console.log(`Usuário ${userId} completou com tempo: ${contador}`);
-
-        // Armazena o tempo no banco de dados
-        const { error: updateError } = await supabase
-            .from('usuarios')
-            .update({ tempo: contador })
-            .eq('id', userId);
-
-        if (updateError) {
-            console.error('Erro ao atualizar o tempo:', updateError.message);
-            socket.emit('erro', 'Erro ao salvar tempo no banco.');
-        } else {
-            socket.emit('sucesso', 'Tempo salvo com sucesso!');
-        }
-
-        // contador = 0; // Reseta o contador após a conclusão
-        //intervalo = null; // Limpa o intervalo
     });
+
+    // // Iniciar o contador quando um usuário se conectar na fase 1
+    // if (faseAtual === 1) {
+    //     contador = 0; // Resetar contador quando um usuário se conecta na fase 1
+    //     intervalo = setInterval(() => {
+    //         contador++;
+    //         console.log(contador);
+    //         io.emit('atualizarContador', contador); // Envia o valor do contador para todos os clientes
+    //     }, 1000);
+    // }
+
+    // // Recebe quando o cliente clica em "Completar"
+    // socket.on('completarFase1', async (userId) => {
+    //     clearInterval(intervalo); // Para o contador
+    //     console.log(`Usuário ${userId} completou com tempo: ${contador}`);
+
+    //     // Armazena o tempo no banco de dados
+    //     const { error: updateError } = await supabase
+    //         .from('usuarios')
+    //         .update({ tempo: contador })
+    //         .eq('id', userId);
+
+    //     if (updateError) {
+    //         console.error('Erro ao atualizar o tempo:', updateError.message);
+    //         socket.emit('erro', 'Erro ao salvar tempo no banco.');
+    //     } else {
+    //         socket.emit('sucesso', 'Tempo salvo com sucesso!');
+    //     }
+
+    //     // contador = 0; // Reseta o contador após a conclusão
+    //     //intervalo = null; // Limpa o intervalo
+    // });
 
     // Redireciona para a fase correta se mudar
     socket.on('mudarFase', (fase) => {
