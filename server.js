@@ -1,4 +1,5 @@
 const supabase = require('./db/supabaseClient');
+const bcrypt = require('bcrypt');
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -45,8 +46,10 @@ app.get('/usuario', async (req, res) => {
 });
 
 app.post('/usuario', async (req, res) => {
+    // Dados do formulario
     const { nome, senha } = req.body;
 
+    // Validações de entrada
     if (typeof nome !== 'string' || nome.trim().length === 0) {
         return res.status(500).json({ error: 'Nome é de preenchimento obrigatório.' });
     }
@@ -69,11 +72,11 @@ app.post('/usuario', async (req, res) => {
     // Verifica se o usuário já existe
     const { data: usuarioDB, error: getError } = await supabase
                                                         .from('usuarios')
-                                                        .select('senha')
+                                                        .select('salt, hash')
                                                         .eq('nome', nome)
                                                         .single();
 
-    // Essa mensagem de erro do supabase acontece quando não encontra a pessoa no banco
+    // Verifica erros na busca
     if (getError && getError.message !== 'JSON object requested, multiple (or no) rows returned') {
         console.error('Erro ao buscar o usuário:', getError.message);
         return res.status(500).json({ error: 'Erro ao buscar o usuário.' });
@@ -81,22 +84,30 @@ app.post('/usuario', async (req, res) => {
 
     if (usuarioDB) {
         // Se o usuário já existe, valida a senha
-        if (senha !== usuarioDB.senha) {
+        const match = await bcrypt.compare(senha, usuarioDB.hash);
+
+        if (!match) {
             return res.status(401).json({ error: 'Nome ou senha incorretos.' });
         }
-
+        
+        console.log(`Usuario logado: ${nome}`);
         return res.sendStatus(200);
-    } else {
+    } 
+    else {
         // Se o usuário não existir, realiza o cadastro
+        const salt = await bcrypt.genSalt(10);
+        const hash = await bcrypt.hash(senha, salt);
+
         const { error: insertError } = await supabase
                                                 .from('usuarios')
-                                                .insert({ nome, senha });
+                                                .insert({ nome, salt, hash });
 
         if (insertError) {
             console.error('Erro ao tentar inserir o usuário:', insertError.message);
             return res.status(400).json({ error: 'Erro ao tentar inserir o usuário.' });
         }
 
+        console.log(`Novo usuario registrado: ${nome}`);
         return res.sendStatus(200);
     }
 });
@@ -135,18 +146,19 @@ app.post('/adm', async (req, res) => {
         return res.sendStatus(200);
     }
 
-    console.error('Erro ao tentar logar como administrador');
-    return res.status(400).json({ error: 'Erro ao tentar logar como administrador' });
+    console.error('Erro ao tentar logar como administrador.');
+    return res.status(400).json({ error: 'Erro ao tentar logar como administrador.' });
 });
 
-// Conexão com Socket.io
+// Usando sockets para gerenciar a pagina do usuario, e troca de informação do contador
 io.on('connection', (socket) => {
     console.log('Um usuario se conectou.');
 
     socket.emit('faseAtual', faseAtual);
 
+    // Impede inicialização de multiplos contadores usando a flag contadorIniciado
     if (!contadorIniciado) {
-        console.log('Iniciando o contador');
+        console.log('Iniciando o contador.');
         contador = 0;
         contadorIniciado = true;
 
@@ -160,7 +172,7 @@ io.on('connection', (socket) => {
     socket.on('mudarFase', (fase) => {
         faseAtual = fase;
         io.emit('redirecionar', fase);
-        console.log(`Redirecionando para fase ${faseAtual}`);
+        console.log(`Redirecionando para fase ${faseAtual}.`);
     });
 
     socket.on('disconnect', () => {
