@@ -72,7 +72,7 @@ app.post('/usuario', async (req, res) => {
     // Verifica se o usuário já existe
     const { data: usuarioDB, error: getError } = await supabase
                                                         .from('usuarios')
-                                                        .select('salt, hash')
+                                                        .select('salt, hash, esta_online')
                                                         .eq('nome', nome)
                                                         .single();
 
@@ -83,6 +83,11 @@ app.post('/usuario', async (req, res) => {
     }
 
     if (usuarioDB) {
+        // Verifica se o usuario já esta online
+        if (usuarioDB.esta_online) {
+            return res.status(403).json({ error: 'Usuário já está logado.' });
+        }
+        
         // Se o usuário já existe, valida a senha
         const match = await bcrypt.compare(senha, usuarioDB.hash);
 
@@ -150,11 +155,34 @@ app.post('/adm', async (req, res) => {
     return res.status(400).json({ error: 'Erro ao tentar logar como administrador.' });
 });
 
+async function atualizarStatusOnline(userId, statusOnline) {
+    if (!userId) {
+        throw new Error('ID do usuário não está definido.');
+    }
+
+    const { error } = await supabase
+        .from('usuarios')
+        .update({ esta_online: statusOnline })
+        .eq('id', userId);
+
+    if (error) {
+        console.error('Erro ao tentar alterar status <esta_online> do usuário:', error.message);
+        throw new Error('Erro ao tentar alterar status do usuário.');
+    }
+}
+
 // Usando sockets para gerenciar a pagina do usuario, e troca de informação do contador
 io.on('connection', (socket) => {
+    const userId = socket.handshake.query.userId; // Certifique-se de que o userId está sendo passado na conexão
+
     console.log('Um usuario se conectou.');
 
     socket.emit('faseAtual', faseAtual);
+
+    // Atualiza status para online
+    atualizarStatusOnline(userId, true).catch(error => {
+        console.error(error.message);
+    });
 
     // Impede inicialização de multiplos contadores usando a flag contadorIniciado
     if (!contadorIniciado) {
@@ -177,6 +205,11 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         console.log('Um usuario se desconectou.');
+
+        // Atualiza status para offline
+        atualizarStatusOnline(userId, false).catch(error => {
+            console.error(error.message);
+        });
     })
 });
 
