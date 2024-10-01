@@ -189,7 +189,7 @@ io.on('connection', (socket) => {
     // Impede inicialização de multiplos contadores usando a flag contadorIniciado
     socket.on('iniciarContador', () => {
         if (!contadorIniciado) {
-            console.log('Iniciando o contador.');
+            console.log('Iniciando o contador...');
             contador = 0;
             contadorIniciado = true;
     
@@ -201,7 +201,13 @@ io.on('connection', (socket) => {
     })
 
     socket.on('desligarContador', () => {
+        console.log('Desligando o contador...');
+
+        if (!localInterval) return; 
+
         clearInterval(localInterval);
+        localInterval = null;
+        contadorIniciado = false;
     })
 
     // Redireciona para a fase correta se mudar
