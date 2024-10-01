@@ -184,17 +184,23 @@ io.on('connection', (socket) => {
         console.error(error.message);
     });
 
+    let localInterval;
+
     // Impede inicialização de multiplos contadores usando a flag contadorIniciado
     if (!contadorIniciado) {
         console.log('Iniciando o contador.');
         contador = 0;
         contadorIniciado = true;
 
-        setInterval(() => {
+        localInterval = setInterval(() => {
             contador++;
             io.emit('atualizarContador', contador);
         }, 1000);
     }
+
+    socket.on('desligarContador', () => {
+        clearInterval(localInterval);
+    })
 
     // Redireciona para a fase correta se mudar
     socket.on('mudarFase', (fase) => {
