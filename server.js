@@ -3,8 +3,12 @@ const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
+
 const PORT = 8383;
+
 let faseAtual = 1;
+let contador = 0;
+let contadorIniciado = false;
 
 const app = express();
 const server = http.createServer(app);
@@ -135,56 +139,22 @@ app.post('/adm', async (req, res) => {
     return res.status(400).json({ error: 'Erro ao tentar logar como administrador' });
 });
 
-// Contador de tempo
-let contador = 0;
-let intervalo;
-
 // Conexão com Socket.io
 io.on('connection', (socket) => {
-    console.log('Um usuario se conectou');
+    console.log('Um usuario se conectou.');
 
     socket.emit('faseAtual', faseAtual);
 
-    socket.on('comecarContagem', () => {
+    if (!contadorIniciado) {
+        console.log('Iniciando o contador');
         contador = 0;
+        contadorIniciado = true;
 
-        intervalo = setInterval(() => {
+        setInterval(() => {
             contador++;
             io.emit('atualizarContador', contador);
         }, 1000);
-    });
-
-    // // Iniciar o contador quando um usuário se conectar na fase 1
-    // if (faseAtual === 1) {
-    //     contador = 0; // Resetar contador quando um usuário se conecta na fase 1
-    //     intervalo = setInterval(() => {
-    //         contador++;
-    //         console.log(contador);
-    //         io.emit('atualizarContador', contador); // Envia o valor do contador para todos os clientes
-    //     }, 1000);
-    // }
-
-    // // Recebe quando o cliente clica em "Completar"
-    // socket.on('completarFase1', async (userId) => {
-    //     clearInterval(intervalo); // Para o contador
-    //     console.log(`Usuário ${userId} completou com tempo: ${contador}`);
-
-    //     // Armazena o tempo no banco de dados
-    //     const { error: updateError } = await supabase
-    //         .from('usuarios')
-    //         .update({ tempo: contador })
-    //         .eq('id', userId);
-
-    //     if (updateError) {
-    //         console.error('Erro ao atualizar o tempo:', updateError.message);
-    //         socket.emit('erro', 'Erro ao salvar tempo no banco.');
-    //     } else {
-    //         socket.emit('sucesso', 'Tempo salvo com sucesso!');
-    //     }
-
-    //     // contador = 0; // Reseta o contador após a conclusão
-    //     //intervalo = null; // Limpa o intervalo
-    // });
+    }
 
     // Redireciona para a fase correta se mudar
     socket.on('mudarFase', (fase) => {
@@ -192,31 +162,10 @@ io.on('connection', (socket) => {
         io.emit('redirecionar', fase);
         console.log(`Redirecionando para fase ${faseAtual}`);
     });
+
+    socket.on('disconnect', () => {
+        console.log('Um usuario se desconectou.');
+    })
 });
 
-server.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
-
-
-
-//////////////////////////////////////////////////////////////////////
-//                                                                  //
-//  CODIGO ESCRITO POR: MAURO RAYA FRANCO                           //
-//  ULTIMA REVISÃO: 30/09/2024, 12:14                               //
-//                                                                  //
-//  CODIGO ATUALIZADO POR:                                          //
-//  MUDANÇA:                                                        //
-//  DATA DA REVISÃO:                                                //
-//                                                                  //
-// ---------------------------------------------------------------- //
-//                                                                  //
-//  OBS: PARA RODAR O SERVIDOR COM NODEMON DIGITE:                  //
-//  <NPM RUN DEV> ou                                                //
-//  <NODEMON SERVER.JS>                                             //
-//                                                                  //
-//  <NODE SERVER.JS> também funciona, mas sem nodemon               //
-//                                                                  //
-//  E CONTROL + C finaliza a execução do servidor no terminal       //
-//                                                                  //
-// :D                                                               //
-//                                                                  //
-//////////////////////////////////////////////////////////////////////
+server.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}.`));
