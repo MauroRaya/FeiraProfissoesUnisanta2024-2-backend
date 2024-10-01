@@ -171,6 +171,32 @@ async function atualizarStatusOnline(userId, statusOnline) {
     }
 }
 
+function controlarContador(acao) {
+    if (acao === 'iniciar') {
+        if (contadorIniciado) return;
+
+        console.log('Iniciando o contador...');
+        contador = 0;
+        contadorIniciado = true;
+
+        localInterval = setInterval(() => {
+            contador++;
+            io.emit('atualizarContador', contador);
+        }, 1000);
+    }
+    else if (acao === 'desligar') {
+        if (!localInterval) {
+            console.log('Contador já está desligado ou não foi iniciado.');
+            return;
+        }
+
+        console.log('Desligando o contador...');
+        clearInterval(localInterval);
+        localInterval = null;
+        contadorIniciado = false;
+    }
+}
+
 // Usando sockets para gerenciar a pagina do usuario, e troca de informação do contador
 io.on('connection', (socket) => {
     const userId = socket.handshake.query.userId; // Certifique-se de que o userId está sendo passado na conexão
@@ -184,31 +210,13 @@ io.on('connection', (socket) => {
         console.error(error.message);
     });
 
-    let localInterval;
-
-    // Impede inicialização de multiplos contadores usando a flag contadorIniciado
     socket.on('iniciarContador', () => {
-        if (!contadorIniciado) {
-            console.log('Iniciando o contador...');
-            contador = 0;
-            contadorIniciado = true;
+        controlarContador('iniciar');
+    });
     
-            localInterval = setInterval(() => {
-                contador++;
-                io.emit('atualizarContador', contador);
-            }, 1000);
-        }
-    })
-
     socket.on('desligarContador', () => {
-        console.log('Desligando o contador...');
-
-        if (!localInterval) return; 
-
-        clearInterval(localInterval);
-        localInterval = null;
-        contadorIniciado = false;
-    })
+        controlarContador('desligar');
+    });
 
     // Redireciona para a fase correta se mudar
     socket.on('mudarFase', (fase) => {
